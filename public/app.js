@@ -296,7 +296,7 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
             const labB = xyzToLab(xyzB, wp);
             const cA = new Color("lab", labA);
             const cB = new Color("lab", labB);
-            return cA.deltaE(cB, "2000");
+            return cA.deltaE(cB, "2000") * 100;
         };
 
         const ColorConverter = ({ crosshair, onEdit, observer, setObserver, illuminant, setIlluminant, colorData }) => {
@@ -424,7 +424,7 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
             const fmt = (v, d = 3) => isNaN(v) ? "0.000" : Number(v).toFixed(d);
 
             const [fullscreenImage, setFullscreenImage] = useState(null);
-            const [maxDeltaE, setMaxDeltaE] = useState(0.05);
+            const [maxDeltaE, setMaxDeltaE] = useState(5.0);
             const [searchQuery, setSearchQuery] = useState('');
 
             const filteredMatches = useMemo(() => {
@@ -447,7 +447,7 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
                             } else {
                                 targetColor = new Color(item.hex).to('oklch');
                             }
-                            const d = c.deltaE(targetColor, "OK");
+                            const d = c.deltaE(targetColor, "OK") * 100;
                             if (d <= maxDeltaE) {
                                 allMatches.push({ label, match: { ...item, hex: hexVal, L: targetColor.coords[0], C: targetColor.coords[1], H: isNaN(targetColor.coords[2])?0:targetColor.coords[2], d } });
                             }
@@ -2710,9 +2710,8 @@ const ViewPins = ({ handlePointClick, names, adjectives, dictNotes, savedColors 
                                     }
                                     if (repoPath.endsWith('/')) repoPath = repoPath.slice(0, -1);
                                     
-                                    const apiPath = repoPath 
-                                        ? `https://api.github.com/repos/${user}/${repo}/contents/${repoPath}`
-                                        : `https://api.github.com/repos/${user}/${repo}/contents/`;
+                                    const targetPath = repoPath ? `${repoPath}/data` : 'data';
+                                    const apiPath = `https://api.github.com/repos/${user}/${repo}/contents/${targetPath}`;
                                         
                                     const res = await fetch(apiPath);
                                     if (res.ok) {
@@ -4055,8 +4054,8 @@ const ViewPins = ({ handlePointClick, names, adjectives, dictNotes, savedColors 
             if (compSlotA && compSlotB) { 
                 const cA = new Color("oklch", [compSlotA.L, compSlotA.C, compSlotA.H]); 
                 const cB = new Color("oklch", [compSlotB.L, compSlotB.C, compSlotB.H]); 
-                deltaEOK = cA.deltaE(cB, "OK").toFixed(2); 
-                deltaE2000 = cA.deltaE(cB, "2000").toFixed(2); 
+                deltaEOK = (cA.deltaE(cB, "OK") * 100).toFixed(2); 
+                deltaE2000 = (cA.deltaE(cB, "2000") * 100).toFixed(2); 
             }
 
             return (
@@ -4128,7 +4127,7 @@ const ViewDatabase = ({ colorData, updateColorData, swatchLayout, swatchZoom, ha
             const [brandFilter, setBrandFilter] = useState('');
             
             const [userEnableDeltaE, setUserEnableDeltaE] = useState(false);
-            const [maxDeltaE, setMaxDeltaE] = useState(0.05);
+            const [maxDeltaE, setMaxDeltaE] = useState(5.0);
             
             // Delta E is always active when "all brands" is selected
             const enableDeltaE = !brandFilter || userEnableDeltaE;
@@ -4202,7 +4201,7 @@ const ViewDatabase = ({ colorData, updateColorData, swatchLayout, swatchZoom, ha
                     const center = new Color("oklch", [crosshair.L, crosshair.C, crosshair.H]);
                     items = items.filter(item => {
                         try {
-                            const d = center.deltaE(new Color("oklch", [item.L, item.C, item.H]), "OK");
+                            const d = center.deltaE(new Color("oklch", [item.L, item.C, item.H]), "OK") * 100;
                             item._d = d;
                             return d <= maxDeltaE;
                         } catch(e) { return false; }
@@ -4353,7 +4352,7 @@ const ViewDatabase = ({ colorData, updateColorData, swatchLayout, swatchZoom, ha
                             </label>
                             {enableDeltaE && (
                                 <div className="flex items-center gap-2">
-                                    <input type="range" min="0.00" max="0.25" step="0.01" value={maxDeltaE} onChange={e => setMaxDeltaE(parseFloat(e.target.value))} className="w-32" />
+                                    <input type="range" min="0" max="25" step="0.1" value={maxDeltaE} onChange={e => setMaxDeltaE(parseFloat(e.target.value))} className="w-32" />
                                     <span className="text-[10px] font-mono w-8">{maxDeltaE.toFixed(2)}</span>
                                 </div>
                             )}
@@ -4806,7 +4805,7 @@ const FileManager = ({ linkedFiles, setLinkedFiles, onClose }) => {
                                             </div>
                                             {crosshair?.snapDist > 0.0001 && crosshair?.snapTarget && !crosshair.exactSavedColor && ( 
                                                 <button onClick={() => handleUpdate([crosshair.snapTarget.L, crosshair.snapTarget.C, crosshair.snapTarget.H])} className={`mt-2 px-3 py-1 text-[9px] font-bold uppercase tracking-widest rounded-full border transition-all flex items-center justify-center gap-1.5 active:scale-95 pointer-events-auto`} style={{ color: isLight ? '#010D00' : '#F2E8DF', borderColor: isLight ? 'rgba(1,13,0,0.35)' : 'rgba(242,232,223,0.50)', backgroundColor: 'transparent' }}>
-                                                    <Icon name="magnet" className="w-3 h-3" /> Snap ΔEok: {crosshair.snapDist.toFixed(2)}
+                                                    <Icon name="magnet" className="w-3 h-3" /> Snap ΔEok: {(crosshair.snapDist * 100).toFixed(2)}
                                                 </button> 
                                             )}
                                         </div>
