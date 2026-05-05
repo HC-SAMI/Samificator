@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "http-server -p 3000 -c-1",
-    "build": "mkdir -p dist && cp index.html App.jsx styles.css dist/ && cp -r data dist/",
+    "build": "mkdir -p dist && cp index.html App.jsx styles.css .nojekyll dist/ && cp -r data dist/",
     "preview": "vite preview"
   },
   "dependencies": {
