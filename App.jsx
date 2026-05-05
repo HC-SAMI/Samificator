@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import ReactDOM from 'react-dom';
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+// Removed eager glob import. CSVs are now fetched at runtime from /public/data (published as /data)
 
 // --- UTILITIES --- //
 const Icon = ({ name, className = "w-4 h-4" }) => {
@@ -6582,13 +6583,24 @@ const App = () => {
         initialState?.groupSettings || defaultGroupSettings;
 
       const discoverCSVFiles = async () => {
-        // Strategy 1: "Here" (Express API endpoint)
+        // Strategy 1: Fetch directory listing if possible (handy for some dev servers)
         try {
-          const resList = await fetch("/api/csv-files");
-          if (resList.ok) {
-            const csvFiles = await resList.json();
-            if (Array.isArray(csvFiles) && csvFiles.length > 0) {
-              return csvFiles.filter((f) => f.toLowerCase().endsWith(".csv"));
+          const res = await fetch("./data/");
+          if (res.ok) {
+            const text = await res.text();
+            // Ignore if this is actually the app's index.html being served back
+            if (!text.includes("The ColorSAMificator")) {
+              const regex = /href=["']?([^"'>]+\.csv)["'>]?/gi;
+              let match;
+              const parsedFiles = new Set();
+              while ((match = regex.exec(text)) !== null) {
+                const name = match[1].split("/").pop();
+                if (name && name.toLowerCase().endsWith(".csv"))
+                  parsedFiles.add(decodeURIComponent(name));
+              }
+              if (parsedFiles.size > 0) {
+                return Array.from(parsedFiles);
+              }
             }
           }
         } catch (e) {}
@@ -6631,37 +6643,7 @@ const App = () => {
           }
         } catch (e) {}
 
-        // Strategy 3: "Locally offline" via fetch directory listing parse
-        // (Works for local simple HTTP servers, or Firefox file:// dir listings)
-        try {
-          const res = await fetch("./data/");
-          if (res.ok) {
-            const text = await res.text();
-            // Ignore if this is actually the app's index.html being served back
-            if (!text.includes("The ColorSAMificator")) {
-              const regex = /href=["']?([^"'>]+\.csv)["'>]?/gi;
-              let match;
-              const parsedFiles = new Set();
-              while ((match = regex.exec(text)) !== null) {
-                const name = match[1].split("/").pop();
-                if (name && name.toLowerCase().endsWith(".csv"))
-                  parsedFiles.add(name);
-              }
-              if (parsedFiles.size > 0) {
-                return Array.from(parsedFiles);
-              }
-            }
-          }
-        } catch (e) {}
-
-        // Strategy 4: Fallback for Vite / static bundler injections
-        if (window.__CSV_FILE_MAP__) {
-          return Object.keys(window.__CSV_FILE_MAP__).filter((f) =>
-            f.toLowerCase().endsWith(".csv"),
-          );
-        }
-
-                // Last resort blind fallbacks
+        // Last resort blind fallbacks
         const knownDataFiles = [
           "Reference Colors.csv",
           "agt.csv",
@@ -6709,11 +6691,9 @@ const App = () => {
 
       for (const file of filesToLoad) {
         try {
-          // Safely resolve resource URL: use bundler blob if available, else plain filename
-          const csvKey =
-            window.__CSV_FILE_MAP__ && window.__CSV_FILE_MAP__[file];
-          const blobUrl =
-            csvKey && window.__resources && window.__resources[csvKey];
+          let csvText = "";
+          
+          // Safely resolve resource URL
           let parsedUrl = new URL(window.location.href);
           let p = parsedUrl.pathname;
           if (!p.endsWith('/') && !p.split('/').pop().includes('.')) {
@@ -6721,10 +6701,14 @@ const App = () => {
           }
           let baseForFetch = parsedUrl.origin + p;
           const resolvedPath = file.startsWith("data/") ? file : "data/" + file;
-          const resolvedUrl = blobUrl || new URL(resolvedPath, baseForFetch).href;
+          const resolvedUrl = new URL(resolvedPath, baseForFetch).href;
+          
           const res = await fetch(resolvedUrl);
           if (res.ok) {
-            const csvText = await res.text();
+            csvText = await res.text();
+          }
+            
+          if (csvText) {
             const fc = csvText.trimStart().slice(0, 5).toLowerCase();
             if (fc === "<!doc" || fc === "<html") {
               console.warn("Skip " + file + ": HTML response");
@@ -10555,16 +10539,7 @@ const FileManager = ({ linkedFiles, setLinkedFiles, onClose }) => {
 
   const handleRemoveFile = async (fileToRemove) => {
     setLinkedFiles(linkedFiles.filter((f) => f !== fileToRemove));
-    try {
-      const res = await window.fetch(`/api/csv/${fileToRemove}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        console.log(`Deleted ${fileToRemove} from server`);
-      }
-    } catch (e) {
-      console.error(`Failed to delete ${fileToRemove} from server:`, e);
-    }
+    // Server-side deletion is not available in static mode
   };
 
   return (
@@ -12804,4 +12779,8 @@ const AppUI = ({
   );
 };
 
-export default App;
+const rootItem = document.getElementById("root");
+if (rootItem) {
+  const root = ReactDOM.createRoot(rootItem);
+  root.render(<App />);
+}
